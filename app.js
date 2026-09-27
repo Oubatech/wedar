@@ -26,7 +26,8 @@
       mapHint: "+מספר = מקומות פנויים. לחצו על שולחן.",
       l_free: "יש מקום", l_full: "מלא", l_over: "חריגה", l_none: "אין רשימה",
       round: "עגול", rect: "אביר",
-      unclear: "שם לא ברור בגיליון"
+      unclear: "שם לא ברור בגיליון",
+      declined: "אישר 0 - לא אמור להגיע", unknown: "לא אישר הגעה", unassigned: "לא שובץ לשולחן", noTableShort: "אין"
     },
     ar: {
       title: "أين يجلس الضيف؟",
@@ -51,7 +52,8 @@
       mapHint: "+رقم = مقاعد فارغة. اضغط على طاولة.",
       l_free: "فيها مكان", l_full: "ممتلئة", l_over: "زيادة", l_none: "لا قائمة",
       round: "مستديرة", rect: "طويلة",
-      unclear: "الاسم غير واضح في الجدول"
+      unclear: "الاسم غير واضح في الجدول",
+      declined: "أكّد 0 - غير قادم", unknown: "لم يؤكد الحضور", unassigned: "بدون طاولة", noTableShort: "لا"
     },
     en: {
       title: "Who sits where?",
@@ -76,7 +78,8 @@
       mapHint: "+N = free seats. Tap a table.",
       l_free: "Has space", l_full: "Full", l_over: "Over", l_none: "No list",
       round: "Round", rect: "Long",
-      unclear: "Name unclear in the sheet"
+      unclear: "Name unclear in the sheet",
+      declined: "Confirmed 0 - not coming", unknown: "Did not confirm", unassigned: "No table assigned", noTableShort: "—"
     }
   };
 
@@ -136,8 +139,8 @@
   }
   function labelOf(tb) {
     var parts = [];
-    if (tb.side) parts.push(D.sides[tb.side][state.lang]);
-    if (tb.label) parts.push(tb.label[state.lang]);
+    if (tb.sides.length) parts.push(tb.sides.map(function (s) { return D.sides[s] ? D.sides[s][state.lang] : s; }).join(" / "));
+    if (tb.groups.length) parts.push(tb.groups.map(function (g) { return D.groups[g] ? D.groups[g][state.lang] : g; }).join(" + "));
     parts.push(t()[tb.shape] + " · " + tb.capacity);
     return parts.join(" · ");
   }
@@ -153,9 +156,10 @@
         if (Search.scriptOf(g.names[i]) === state.lang) { alt = g.names[i]; break; }
       }
     }
-    var unclear = orig.indexOf("(?)") >= 0 ? " · " + t().unclear : "";
-    return '<div class="g' + (hl ? " hl" : "") + '"><span class="nm" dir="auto">' + esc(orig) +
-      (alt || unclear ? '<span class="alt" dir="auto">' + esc(alt) + esc(unclear) + "</span>" : "") +
+    var note = g.status === "declined" ? t().declined : g.status === "unknown" ? t().unknown : "";
+    return '<div class="g' + (hl ? " hl" : "") + (note ? " off" : "") + '"><span class="nm" dir="auto">' + esc(orig) +
+      (alt ? '<span class="alt" dir="auto">' + esc(alt) + "</span>" : "") +
+      (note ? '<span class="note">' + esc(note) + "</span>" : "") +
       '</span><span class="cnt">×' + g.count + "</span></div>";
   }
 
@@ -193,11 +197,12 @@
     if (!res.length) return { kind: q.length < 2 ? "short" : "none", ids: [] };
     var groups = [], seen = {};
     res.forEach(function (r) {
-      var id = r.guest.table;
-      if (!seen[id]) { seen[id] = { tb: tablesById[id], guests: [] }; groups.push(seen[id]); }
+      var id = r.guest.table || "none";
+      if (!seen[id]) { seen[id] = { tb: tablesById[id] || null, guests: [] }; groups.push(seen[id]); }
       seen[id].guests.push(r.guest);
     });
-    return { kind: "names", groups: groups, count: res.length, ids: groups.map(function (g) { return g.tb.id; }) };
+    return { kind: "names", groups: groups, count: res.length,
+      ids: groups.filter(function (g) { return g.tb; }).map(function (g) { return g.tb.id; }) };
   }
 
   function renderResults() {
@@ -216,6 +221,12 @@
     }
     var h = '<div class="summary">' + esc(t().matches(r.count)) + "</div>";
     r.groups.forEach(function (gr) {
+      if (!gr.tb) {
+        h += '<div class="card"><div class="num none"><b>?</b></div><div class="body"><div class="row"><span class="meta grow">' +
+          esc(t().unassigned) + '</span><span class="chip over">' + esc(t().unassigned) + "</span></div>" +
+          gr.guests.map(function (g) { return guestRow(g, false); }).join("") + "</div></div>";
+        return;
+      }
       h += '<button class="card" data-table="' + gr.tb.id + '" data-hl="' +
         gr.guests.map(function (g) { return D.guests.indexOf(g); }).join(",") + '">' + numBox(gr.tb) +
         '<div class="body"><div class="row"><span class="meta grow">' + esc(labelOf(gr.tb)) + "</span>" + chip(gr.tb) + "</div>" +

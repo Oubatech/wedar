@@ -2,15 +2,27 @@
 
 A phone-first page for the person greeting guests at the door. Type a name (Arabic, Hebrew or English, any spelling), a family name, or a table number, and it shows the table, everyone seated there, and free seats. Works with no internet after the first visit.
 
-## Files
-- `data.js` — the seating list (edit this to change guests). Each row: `[partySize, "name as in sheet", "other spelling", ...]`.
-- `hall.js` — table positions on the hall map.
-- `search.js` — multilingual fuzzy search. `app.js` — the UI. `sw.js` — offline cache.
+## Where the data comes from
+The only source of truth is the two mit4mit exports in `source/`:
+- `source/invitees.csv` — the invitee list. The count shown for each guest is the confirmed column ("אורחים שאישרו"). Phone numbers are removed before saving here, because this repo is public.
+- `source/seating.csv` — the seating plan. It decides which table each guest sits at.
 
-## Change the guest list
-1. Edit `data.js`.
-2. Run `node tests/run.js` (checks each table total against the sheet's printed total and runs search cases).
-3. Bump `VERSION` in `sw.js` so phones pick up the new data.
+`tools/build_data.py` reads both files and writes `data.js`. Do not edit `data.js` by hand.
+`aliases.json` holds the Arabic, Hebrew and English spellings for each name, so search works across languages.
+
+## Update the guest list
+1. Export both files again from mit4mit as CSV. Delete the phone column from the invitee file.
+2. Replace the two files in `source/`, keeping the same names.
+3. Run:
+   ```
+   python3 tools/build_data.py
+   node tests/run.js
+   ```
+   The build prints guests with no table, guests who confirmed 0, count differences and over-full tables. It also warns about names missing from `aliases.json`. Add those names there, then run it again.
+4. Bump `VERSION` in `sw.js`, then commit and push. Phones get the new list the next time they are online.
+
+## Files
+- `search.js` — multilingual fuzzy search. `app.js` — the UI. `hall.js` — table positions on the map. `sw.js` — offline cache.
 
 ## Run locally
 ```

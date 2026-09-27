@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION whenever any file changes so phones pick up the update.
-var VERSION = "seating-v1";
+var VERSION = "seating-v2";
 var FILES = ["./", "index.html", "app.js", "search.js", "data.js", "hall.js", "manifest.json", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
