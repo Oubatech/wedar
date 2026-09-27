@@ -372,6 +372,7 @@
     var tb = tablesById[id];
     if (!tb) return;
     state.focus = id;
+    resetSheetStyle();
     sheet.innerHTML = '<div class="grab"></div>' + detailHTML(tb, hl, true);
     sheetWrap.classList.add("on");
     sheet.scrollTop = 0;
@@ -387,6 +388,67 @@
   }
   window.addEventListener("popstate", function () { closeSheet(true); });
   $("backdrop").addEventListener("click", function () { closeSheet(); });
+
+  // ---------- drag the sheet down to close ----------
+  var backdrop = $("backdrop");
+  var drag = null;
+  function resetSheetStyle() {
+    sheet.style.transition = sheet.style.transform = "";
+    backdrop.style.transition = backdrop.style.opacity = "";
+  }
+  sheet.addEventListener("touchstart", function (e) {
+    if (e.touches.length !== 1) { drag = null; return; }
+    drag = {
+      y0: e.touches[0].clientY, dy: 0, active: false, samples: [],
+      // start a drag only from the handle, or when the list is scrolled to the top
+      allowed: !!e.target.closest(".grab") || sheet.scrollTop <= 0
+    };
+  }, { passive: true });
+  sheet.addEventListener("touchmove", function (e) {
+    if (!drag || !drag.allowed) return;
+    var dy = e.touches[0].clientY - drag.y0;
+    if (!drag.active) {
+      if (dy < -6) { drag = null; return; }          // moving up: normal scrolling
+      if (dy < 8 || sheet.scrollTop > 0) return;
+      drag.active = true;
+      drag.y0 = e.touches[0].clientY;                  // start from here so it doesn't jump
+      drag.samples = [];
+      dy = 0;
+    }
+    e.preventDefault();
+    drag.dy = Math.max(0, dy);
+    drag.samples.push({ y: drag.dy, t: Date.now() });
+    if (drag.samples.length > 12) drag.samples.shift();
+    sheet.style.transition = backdrop.style.transition = "none";
+    sheet.style.transform = "translateY(" + drag.dy + "px)";
+    backdrop.style.opacity = String(1 - Math.min(1, drag.dy / sheet.offsetHeight));
+  }, { passive: false });
+  function endDrag() {
+    if (!drag || !drag.active) { drag = null; return; }
+    // speed over the last ~120ms of the gesture (px per ms), so a final flick counts
+    var last = drag.samples[drag.samples.length - 1] || { y: 0, t: Date.now() };
+    var ref = drag.samples[0] || last;
+    for (var i = drag.samples.length - 1; i >= 0; i--) {
+      ref = drag.samples[i];
+      if (last.t - ref.t >= 120) break;
+    }
+    var speed = (last.y - ref.y) / Math.max(1, last.t - ref.t);
+    var shouldClose = drag.dy > Math.min(120, sheet.offsetHeight * 0.25) || (speed > 0.5 && drag.dy > 30);
+    sheet.style.transition = "transform .2s ease-out";
+    backdrop.style.transition = "opacity .2s ease-out";
+    if (shouldClose) {
+      sheet.style.transform = "translateY(100%)";
+      backdrop.style.opacity = "0";
+      setTimeout(function () { closeSheet(); resetSheetStyle(); }, 200);
+    } else {
+      sheet.style.transform = "translateY(0)";
+      backdrop.style.opacity = "1";
+      setTimeout(resetSheetStyle, 200);
+    }
+    drag = null;
+  }
+  sheet.addEventListener("touchend", endDrag);
+  sheet.addEventListener("touchcancel", endDrag);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeSheet(); });
 
   function showOnMap(id) {
